@@ -79,3 +79,9 @@ network_config.json
 # Sistema
 .DS_Store
 Thumbs.db
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
