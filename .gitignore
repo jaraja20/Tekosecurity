@@ -1,0 +1,80 @@
+# TEKOSECURE - Git Ignore
+# Excluir archivos sensibles de versionamiento
+
+# Credenciales y configuración
+.env
+.env.local
+.env.*.local
+secrets/
+credentials/
+
+# Logs
+logs/
+*.log
+**/*.log
+
+# Base de datos
+database/
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporal
+temp/
+tmp/
+*.tmp
+*.bak
+
+# Node (si usas Emergent App)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Sensible data
+hikvision_devices.json
+network_config.json
+*.xlsx
+*.xls
+*.csv
+
+# Backup
+*.backup
+*.bak
+*~
+
+# Sistema
+.DS_Store
+Thumbs.db
