@@ -4,6 +4,7 @@
 # Credenciales y configuración
 .env
 .env.local
+.env.supabase
 .env.*.local
 secrets/
 credentials/
