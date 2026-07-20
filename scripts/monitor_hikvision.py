@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-TEKOSECURE - Monitor Hikvision
-Monitorea estado de NVRs y cámaras Hikvision por SNMP/HTTP
+TEKOSECURE - Monitor Hikvision (Integrado con Supabase)
+Monitorea estado de NVRs y guarda en BD en tiempo real
 """
 
 import sys
@@ -16,6 +16,7 @@ from requests.auth import HTTPBasicAuth
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'config'))
 
 from secure_config import SecureConfigManager
+from supabase_client import supabase
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,7 +34,8 @@ class HikvisionMonitor:
             with open(os.path.join(os.path.dirname(__file__), '..', 'config', 'hikvision_devices.json')) as f:
                 self.devices_config = json.load(f)
             self.session = requests.Session()
-            self.session.verify = False  # Deshabilita verificación SSL (equipos locales)
+            self.session.verify = False
+            self.nvr_previous_state = {}
             logging.info(f"Monitor Hikvision inicializado - {len(self.devices_config['hikvision_nvrs'])} NVRs")
         except Exception as e:
             logging.error(f"Error inicializando monitor Hikvision: {e}")
@@ -44,7 +46,7 @@ class HikvisionMonitor:
         import os
         from dotenv import load_dotenv
 
-        env_path = os.path.join(os.path.dirname(__file__), '..', 'config', '.env')
+        env_path = os.path.join(os.path.dirname(__file__), '..', 'config', '.env.supabase')
         load_dotenv(env_path)
 
         encrypted = os.getenv(password_key)
@@ -65,8 +67,8 @@ class HikvisionMonitor:
         except:
             return None
 
-    def test_connection(self, nvr):
-        """Prueba conexión a NVR"""
+    def check_nvr_status(self, nvr):
+        """Comprueba estado del NVR"""
         try:
             ip = nvr['ip']
             username = nvr['username']
@@ -75,9 +77,8 @@ class HikvisionMonitor:
 
             if not password:
                 logging.error(f"No se pudo obtener contraseña para {nvr['name']}")
-                return False
+                return {'status': 'error', 'ip': ip}
 
-            # Intentar conectar
             url = f"http://{ip}:80/ISAPI/System/status"
             response = self.session.get(
                 url,
@@ -86,80 +87,117 @@ class HikvisionMonitor:
             )
 
             if response.status_code == 200:
-                logging.info(f"✓ {nvr['name']} ({ip}) - Conectado")
-                return True
+                return {'status': 'online', 'ip': ip, 'response_time': response.elapsed.total_seconds()}
             else:
-                logging.warning(f"✗ {nvr['name']} ({ip}) - Status {response.status_code}")
-                return False
+                return {'status': 'offline', 'ip': ip, 'code': response.status_code}
 
+        except requests.exceptions.Timeout:
+            return {'status': 'timeout', 'ip': ip}
         except Exception as e:
-            logging.error(f"✗ {nvr['name']} - Error: {str(e)[:60]}")
-            return False
+            return {'status': 'error', 'ip': ip, 'error': str(e)[:50]}
 
-    def get_nvr_status(self, nvr):
-        """Obtiene estado del NVR"""
+    def record_hikvision_event(self, nvr, status_result):
+        """Registra evento en Supabase"""
         try:
-            ip = nvr['ip']
-            username = nvr['username']
-            password_key = nvr['password_key']
-            password = self.get_password(password_key)
+            event_data = {
+                'nvr_id': nvr['id'],
+                'nvr_name': nvr['name'],
+                'nvr_ip': nvr['ip'],
+                'event_type': 'STATUS_CHECK',
+                'status': status_result['status'].upper(),
+                'model': nvr['modelo'],
+                'port_count': nvr['puertos'],
+                'location': nvr['ubicacion'],
+                'details': json.dumps(status_result)
+            }
 
-            url = f"http://{ip}:80/ISAPI/System/status"
-            response = self.session.get(
-                url,
-                auth=HTTPBasicAuth(username, password),
-                timeout=5
-            )
-
-            if response.status_code == 200:
-                # Parsear respuesta XML (simplificado)
-                return {
-                    'status': 'online',
-                    'response': response.text[:200]
-                }
+            # Registrar en Supabase
+            if supabase:
+                supabase.log_hikvision_event(event_data)
             else:
-                return {'status': 'offline', 'code': response.status_code}
+                logging.warning("Supabase no disponible, guardando solo en log")
+
+            # Detectar cambios de estado
+            key = nvr['ip']
+            old_status = self.nvr_previous_state.get(key, 'unknown')
+            new_status = status_result['status']
+
+            if old_status != new_status and old_status != 'unknown':
+                # Estado cambió - crear alerta
+                logging.warning(f"⚠️ {nvr['name']}: {old_status.upper()} → {new_status.upper()}")
+
+                # Registrar alerta en Supabase
+                if supabase:
+                    supabase.log_attack({
+                        'attack_type': 'NVR_STATUS_CHANGE',
+                        'source_ip': nvr['ip'],
+                        'severity': 'HIGH' if new_status == 'offline' else 'MEDIUM',
+                        'details': f"NVR {nvr['name']} cambió de {old_status} a {new_status}",
+                        'mikrotik_ip': '192.168.13.100',
+                        'status': 'ACTIVE'
+                    })
+
+            self.nvr_previous_state[key] = new_status
 
         except Exception as e:
-            return {'status': 'error', 'error': str(e)}
+            logging.error(f"Error registrando evento: {e}")
 
     def monitor_all_nvrs(self):
-        """Monitorea todos los NVRs"""
-        logging.info("=" * 60)
+        """Monitorea todos los NVRs y registra en BD"""
+        logging.info("=" * 70)
         logging.info(f"MONITOREO HIKVISION: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        logging.info("=" * 60)
+        logging.info("=" * 70)
 
         online_count = 0
         offline_count = 0
+        error_count = 0
 
         for nvr in self.devices_config['hikvision_nvrs']:
-            status = self.get_nvr_status(nvr)
+            status = self.check_nvr_status(nvr)
 
+            # Registrar en BD
+            self.record_hikvision_event(nvr, status)
+
+            # Estadísticas
             if status['status'] == 'online':
-                logging.info(f"✓ {nvr['name']:40} | {nvr['ip']:15} | ONLINE  | {nvr['modelo']}")
+                logging.info(f"✓ {nvr['name']:40} | {nvr['ip']:15} | ONLINE  | {nvr['modelo']:20} | {nvr['puertos']} puertos")
                 online_count += 1
-            else:
-                logging.warning(f"✗ {nvr['name']:40} | {nvr['ip']:15} | OFFLINE | {nvr['modelo']}")
+            elif status['status'] == 'offline':
+                logging.warning(f"✗ {nvr['name']:40} | {nvr['ip']:15} | OFFLINE | {nvr['modelo']:20} | {nvr['puertos']} puertos")
                 offline_count += 1
+            else:
+                logging.error(f"E {nvr['name']:40} | {nvr['ip']:15} | ERROR   | {status.get('error', 'unknown')}")
+                error_count += 1
 
-        logging.info("=" * 60)
-        logging.info(f"Resumen: {online_count} ONLINE | {offline_count} OFFLINE | Total: {len(self.devices_config['hikvision_nvrs'])}")
-        logging.info("=" * 60)
+        logging.info("=" * 70)
+        logging.info(f"RESUMEN: {online_count} ONLINE | {offline_count} OFFLINE | {error_count} ERRORES | Total: {len(self.devices_config['hikvision_nvrs'])}")
+        logging.info(f"SUPABASE: Registrando eventos en BD en tiempo real")
+        logging.info("=" * 70)
 
-    def test_all_connections(self):
-        """Prueba conexión a todos los NVRs"""
-        logging.info("PRUEBAS DE CONEXIÓN HIKVISION")
-        logging.info("=" * 60)
+    def continuous_monitoring(self, interval=60):
+        """Monitoreo continuo"""
+        import time
 
-        for nvr in self.devices_config['hikvision_nvrs']:
-            self.test_connection(nvr)
+        logging.info(f"Iniciando monitoreo continuo (intervalo: {interval}s)")
 
-        logging.info("=" * 60)
+        try:
+            while True:
+                self.monitor_all_nvrs()
+                time.sleep(interval)
+        except KeyboardInterrupt:
+            logging.info("Monitoreo detenido por usuario")
+        except Exception as e:
+            logging.error(f"Error en monitoreo continuo: {e}")
 
 if __name__ == "__main__":
     monitor = HikvisionMonitor()
 
-    if len(sys.argv) > 1 and sys.argv[1] == '--test':
-        monitor.test_all_connections()
+    if len(sys.argv) > 1:
+        if sys.argv[1] == '--once':
+            monitor.monitor_all_nvrs()
+        elif sys.argv[1] == '--continuous':
+            interval = int(sys.argv[2]) if len(sys.argv) > 2 else 60
+            monitor.continuous_monitoring(interval)
     else:
+        # Por defecto: una sola ejecución
         monitor.monitor_all_nvrs()
