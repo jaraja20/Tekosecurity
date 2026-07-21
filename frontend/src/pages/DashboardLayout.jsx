@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Cpu,
   ShieldAlert,
+  Router,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
@@ -16,6 +17,7 @@ const BACKEND = process.env.REACT_APP_BACKEND_URL?.replace(/\/$/, '') || '';
 const NAV = [
   { to: '/', label: 'Dashboard', icon: Activity, end: true, testid: 'nav-dashboard' },
   { to: '/alerts', label: 'Alertas', icon: Bell, testid: 'nav-alerts' },
+  { to: '/mikrotiks', label: 'Mikrotiks', icon: Router, testid: 'nav-mikrotiks' },
   { to: '/nvrs', label: 'NVRs', icon: Cpu, testid: 'nav-nvrs' },
 ];
 
@@ -74,6 +76,8 @@ export default function DashboardLayout() {
       ? 'Panel de Operaciones'
       : location.pathname.includes('alerts')
       ? 'Alertas'
+      : location.pathname.includes('mikrotiks')
+      ? 'Mikrotik Gateways'
       : location.pathname.includes('nvrs')
       ? 'NVRs Hikvision'
       : 'TEKOSECURE';

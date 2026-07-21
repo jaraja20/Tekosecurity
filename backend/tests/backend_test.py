@@ -228,3 +228,84 @@ def test_local_audit_fallback_writes_file(token):
     assert audit_file.parent.exists()
     # Log message informational
     print(f"audit.log size before={before} after={after}")
+
+
+
+# ============================================================
+# FASE 3 — /api/mikrotiks (sanitized topology)
+# ============================================================
+
+EXPECTED_NAMES = {"MATRIZ_KM6", "OASIS", "KM12", "HERNANDARIAS"}
+EXPECTED_IPS = {
+    "MATRIZ_KM6": "192.168.13.100",
+    "OASIS": "192.168.12.1",
+    "KM12": "192.168.15.1",
+    "HERNANDARIAS": "192.168.16.1",
+}
+
+
+def test_mikrotiks_no_auth():
+    r = requests.get(f"{BASE_URL}/api/mikrotiks", timeout=10)
+    assert r.status_code == 401
+
+
+def test_mikrotiks_with_auth(token):
+    r = requests.get(
+        f"{BASE_URL}/api/mikrotiks",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=15,
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["mode"] == "DRY_RUN"
+    assert data["count"] == 4
+    mks = data["mikrotiks"]
+    assert isinstance(mks, list) and len(mks) == 4
+    names = {m["name"] for m in mks}
+    assert names == EXPECTED_NAMES, f"names: {names}"
+    for m in mks:
+        assert m["ip"] == EXPECTED_IPS[m["name"]]
+
+
+def test_mikrotiks_no_password_leak(token):
+    """CRITICAL security check: response must NOT contain 'password' anywhere."""
+    r = requests.get(
+        f"{BASE_URL}/api/mikrotiks",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=15,
+    )
+    assert r.status_code == 200
+    # Raw text check — covers any nesting
+    assert "password" not in r.text.lower(), "SECURITY LEAK: 'password' present in response"
+    data = r.json()
+    for m in data["mikrotiks"]:
+        assert "password" not in m
+
+
+def test_mikrotiks_priorities(token):
+    r = requests.get(
+        f"{BASE_URL}/api/mikrotiks",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=15,
+    )
+    data = r.json()
+    by_name = {m["name"]: m for m in data["mikrotiks"]}
+    assert by_name["MATRIZ_KM6"]["priority"] == "CRITICAL"
+    assert by_name["MATRIZ_KM6"]["role"] == "VPN_SERVER_HUB"
+    for n in ("OASIS", "KM12", "HERNANDARIAS"):
+        assert by_name[n]["priority"] == "HIGH"
+        assert by_name[n]["role"] == "VPN_CLIENT"
+
+
+def test_mikrotiks_security_policy(token):
+    r = requests.get(
+        f"{BASE_URL}/api/mikrotiks",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=15,
+    )
+    data = r.json()
+    sp = data["security_policy"]
+    assert sp["block_ssh_after_attempts"] == 5
+    assert sp["block_window_minutes"] == 5
+    assert sp["temporal_block_hours"] == 24
+    assert sp["enable_logging"] is True

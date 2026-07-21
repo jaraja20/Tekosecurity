@@ -184,6 +184,29 @@ async def me(authorization: Optional[str] = Header(default=None)):
     return await _verify_supabase_token(_bearer(authorization))
 
 
+@app.get("/api/mikrotiks")
+async def list_mikrotiks(authorization: Optional[str] = Header(default=None)):
+    """Return the sanitized Mikrotik topology (NO passwords) + current mode."""
+    await _verify_supabase_token(_bearer(authorization))
+    try:
+        cfg = load_mikrotik_config()
+    except SecretsError as exc:
+        raise HTTPException(status_code=500, detail=f"Config error: {exc}")
+
+    devices = []
+    for mk in cfg.get("mikrotiks", []):
+        # Explicitly strip password from response
+        safe = {k: v for k, v in mk.items() if k != "password"}
+        devices.append(safe)
+
+    return {
+        "mode": "DRY_RUN" if is_dry_run() else "REAL_ACTIONS",
+        "count": len(devices),
+        "mikrotiks": devices,
+        "security_policy": cfg.get("security_policy", {}),
+    }
+
+
 @app.post("/api/actions/close-alert")
 async def close_alert(
     payload: CloseAlertRequest,
