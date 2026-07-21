@@ -1,0 +1,66 @@
+{
+  "_comment": "SANITIZED Mikrotik topology. NO passwords here — those live encrypted in backend/.env (see MIKROTIK_PASSWORD_ENC).",
+  "mikrotiks": [
+    {
+      "name": "MATRIZ_KM6",
+      "ip": "192.168.13.100",
+      "username": "nasserti",
+      "location": "Casa Matriz",
+      "model": "RB760iGS",
+      "role": "VPN_SERVER_HUB",
+      "priority": "CRITICAL",
+      "lan_subnet": "192.168.13.0/24",
+      "firewall_enabled": true,
+      "vpn_server": true,
+      "ospf_enabled": true,
+      "description": "Gateway Principal - VPN Server HUB (CRÍTICO)"
+    },
+    {
+      "name": "OASIS",
+      "ip": "192.168.12.1",
+      "management_ip": "190.128.255.226",
+      "username": "nasserti",
+      "location": "Oasis",
+      "model": "RouterBOARD 750G r2",
+      "role": "VPN_CLIENT",
+      "priority": "HIGH",
+      "lan_subnet": "192.168.12.0/24",
+      "firewall_enabled": true,
+      "vpn_client": true,
+      "description": "Gateway Oasis - Cliente VPN (Respaldo Internet)"
+    },
+    {
+      "name": "KM12",
+      "ip": "192.168.15.1",
+      "username": "nasserti",
+      "location": "Deposito KM12",
+      "model": "RB760iGS",
+      "role": "VPN_CLIENT",
+      "priority": "HIGH",
+      "lan_subnet": "192.168.15.0/24",
+      "firewall_enabled": true,
+      "vpn_client": true,
+      "description": "Gateway KM12 - Cliente VPN"
+    },
+    {
+      "name": "HERNANDARIAS",
+      "ip": "192.168.16.1",
+      "management_ip": "10.156.97.162",
+      "username": "nasserti",
+      "location": "Hernandarias",
+      "model": "CRS326-24G-2S+",
+      "role": "VPN_CLIENT",
+      "priority": "HIGH",
+      "lan_subnet": "192.168.16.0/24",
+      "firewall_enabled": true,
+      "vpn_client": true,
+      "description": "Gateway Hernandarias - Cliente VPN"
+    }
+  ],
+  "security_policy": {
+    "block_ssh_after_attempts": 5,
+    "block_window_minutes": 5,
+    "enable_logging": true,
+    "temporal_block_hours": 24
+  }
+}

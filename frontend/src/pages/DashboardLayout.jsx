@@ -7,8 +7,11 @@ import {
   Radio,
   ShieldCheck,
   Cpu,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+
+const BACKEND = process.env.REACT_APP_BACKEND_URL?.replace(/\/$/, '') || '';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: Activity, end: true, testid: 'nav-dashboard' },
@@ -29,6 +32,39 @@ function Clock() {
   );
 }
 
+function ModeBadge() {
+  const [mode, setMode] = useState(null);
+  useEffect(() => {
+    fetch(`${BACKEND}/api/health`)
+      .then((r) => r.json())
+      .then((d) => setMode(d.mode))
+      .catch(() => setMode('OFFLINE'));
+  }, []);
+  if (!mode) return null;
+  const dry = mode === 'DRY_RUN';
+  const off = mode === 'OFFLINE';
+  const color = off ? '#ff0040' : dry ? '#ff9100' : '#00ff88';
+  return (
+    <div
+      data-testid="mode-badge"
+      title={
+        dry
+          ? 'DRY-RUN: /api/actions/block-ip-real simula el SSH. Cambiar MIKROTIK_DRY_RUN=false on-prem.'
+          : 'REAL: los bloqueos van a los Mikrotik por SSH.'
+      }
+      className="flex items-center gap-1.5 px-2 py-1 rounded border mono text-[10px] tracking-widest"
+      style={{
+        color,
+        borderColor: `${color}55`,
+        background: `${color}10`,
+      }}
+    >
+      <ShieldAlert className="w-3 h-3" />
+      MODE: {mode}
+    </div>
+  );
+}
+
 export default function DashboardLayout() {
   const { user, signOut } = useAuth();
   const location = useLocation();
@@ -44,7 +80,6 @@ export default function DashboardLayout() {
 
   return (
     <div className="min-h-screen flex flex-col relative">
-      {/* Top bar */}
       <header className="relative z-10 flex items-center justify-between px-5 md:px-8 py-3 border-b border-line/40 bg-bg-900/80 backdrop-blur">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-md border border-neon-cyan/40 bg-neon-cyan/10 flex items-center justify-center shadow-glow-cyan">
@@ -60,13 +95,14 @@ export default function DashboardLayout() {
           </div>
         </div>
 
-        <div className="hidden md:flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded border border-neon-on/30 bg-neon-on/5">
             <span className="dot bg-neon-on shadow-glow-on animate-pulseGlow" />
             <span className="mono text-[11px] tracking-widest text-neon-on">
               REALTIME
             </span>
           </div>
+          <ModeBadge />
           <Clock />
         </div>
 
@@ -91,7 +127,6 @@ export default function DashboardLayout() {
       </header>
 
       <div className="flex flex-1 min-h-0 relative z-10">
-        {/* Sidebar */}
         <nav className="hidden md:flex w-56 flex-col border-r border-line/40 bg-bg-900/60 backdrop-blur px-3 py-6">
           <div className="mono text-[10px] tracking-[0.28em] text-ink-muted px-2 mb-3">
             NAVEGACIÓN
@@ -127,7 +162,6 @@ export default function DashboardLayout() {
           </div>
         </nav>
 
-        {/* Mobile nav */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 border-t border-line/40 bg-bg-900/95 backdrop-blur flex">
           {NAV.map((item) => {
             const Icon = item.icon;
