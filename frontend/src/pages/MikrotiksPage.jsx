@@ -8,10 +8,9 @@ import {
   Zap,
   Wifi,
   Network,
+  AlertTriangle,
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-
-const BACKEND = process.env.REACT_APP_BACKEND_URL?.replace(/\/$/, '') || '';
+import { apiFetch, ApiError } from '../lib/api';
 
 const PRIORITY_STYLE = {
   CRITICAL: { color: '#ff1744', bg: 'rgba(255,23,68,0.10)' },
@@ -173,28 +172,18 @@ export default function MikrotiksPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [blocksByHost, setBlocksByHost] = useState({});
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) throw new Error('Sesión no encontrada');
-
-      const [mkR, auditR] = await Promise.all([
-        fetch(`${BACKEND}/api/mikrotiks`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        }),
-        fetch(`${BACKEND}/api/actions/audit-log?limit=200`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        }),
+      const [mkJson, auditJson] = await Promise.all([
+        apiFetch('/api/mikrotiks'),
+        apiFetch('/api/actions/audit-log?limit=200').catch(() => ({ entries: [] })),
       ]);
-      const mkJson = await mkR.json();
-      if (!mkR.ok) throw new Error(mkJson.detail || 'Error cargando Mikrotiks');
       setData(mkJson);
 
-      const auditJson = await auditR.json();
       const counts = {};
       const cutoff = Date.now() - 24 * 3600 * 1000;
       for (const entry of auditJson.entries || []) {
@@ -215,7 +204,12 @@ export default function MikrotiksPage() {
       }
       setBlocksByHost(counts);
     } catch (e) {
-      toast.error(e.message);
+      const msg =
+        e instanceof ApiError && e.status === 401
+          ? 'Sesión expirada. Recarga la página.'
+          : e.message || 'Error cargando Mikrotiks';
+      setError({ status: e.status, message: msg });
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -270,7 +264,35 @@ export default function MikrotiksPage() {
         </div>
       )}
 
-      {!loading && list.length === 0 && (
+      {!loading && error && (
+        <div
+          data-testid="mikrotiks-error"
+          className="panel p-6 border-neon-crit/40 flex items-start gap-3"
+        >
+          <AlertTriangle className="w-5 h-5 text-neon-crit flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <div className="mono text-[12px] tracking-widest text-neon-crit">
+              ERROR AL CARGAR GATEWAYS
+              {error.status ? ` — HTTP ${error.status}` : ''}
+            </div>
+            <div className="text-[13px] mt-1 text-ink-dim">
+              {error.message}
+            </div>
+            <div className="mt-3">
+              <button
+                onClick={load}
+                data-testid="mikrotiks-retry"
+                className="px-3 py-1.5 rounded border border-neon-cyan/50 bg-neon-cyan/10 text-neon-cyan mono text-[11px] tracking-widest hover:bg-neon-cyan/20 transition"
+              >
+                <RefreshCw className="w-3 h-3 inline mr-1.5" />
+                REINTENTAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && data && list.length === 0 && (
         <div className="panel p-8 text-center text-ink-dim">
           <div className="mono text-[12px] tracking-widest">
             SIN GATEWAYS CONFIGURADOS

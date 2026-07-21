@@ -1,0 +1,21 @@
+{
+  "summary": "Iteración 4 — Fix de resiliencia a token JWT expirado validado end-to-end. Backend 21/21 pytest verdes (sin regresión). Frontend: (a) flujo normal /mikrotiks carga las 4 tarjetas (MATRIZ_KM6, OASIS, KM12, HERNANDARIAS) + panel POLÍTICA DE SEGURIDAD ACTIVA; (b) simulación de fallo con page.route interceptando /api/mikrotiks → 500, el panel data-testid='mikrotiks-error' aparece y muestra el botón data-testid='mikrotiks-retry'; (c) el texto 'SIN GATEWAYS CONFIGURADOS' NO se muestra cuando hay error (fix correcto); (d) tras quitar el intercept y clickar REINTENTAR, las 4 tarjetas vuelven a cargar; (e) regresión OK en /alerts (badge MODE:DRY_RUN visible), /nvrs, dashboard home y logout → /login.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "api.js apiFetch: implementación limpia — chequea expiración con SKEW_SECONDS=60, refresh proactivo y también retry único en 401/403. ApiError expone status/body/url para consumidores.",
+    "MikrotiksPage.jsx distingue correctamente entre 'error' (con data-testid) y 'empty config' (sólo si data existe y list.length===0). Fix del bug reportado.",
+    "React Router future flag warnings (v7_startTransition / v7_relativeSplatPath) siguen apareciendo — no bloqueantes pero cabe agregar future flags en el Router config.",
+    "apiFetch no maneja timeouts explícitos ni retries de red (5xx transitorios): sólo re-intenta en 401/403. Considerar exponer un timeout opcional para llamadas largas."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "ti@nasser.com.py / NasserTi73491654",
+  "seed_data_creation": "Ninguno.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Fix de resiliencia (apiFetch + estado error en /mikrotiks) verificado. La simulación de 500 vía page.route confirmó que el UI muestra mikrotiks-error/mikrotiks-retry y NO cae al mensaje 'SIN GATEWAYS'. Todos los 21 tests pytest de fase 1/2/3 siguen verdes. Regresión de /alerts /nvrs / y logout OK.",
+  "rca of the issue": "Bug original: JWT expiraba en background y el frontend enviaba token vencido → backend 401/403; el UI /mikrotiks lo interpretaba como 'sin gateways' (colapsaba con 'config vacía'). Fix: lib/api.js apiFetch hace refresh proactivo si <60s a expirar y retry único ante 401/403; MikrotiksPage separa estado error (data-testid=mikrotiks-error + mikrotiks-retry) del estado empty. Validado con intercept de red en Playwright."
+}

@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldOff, X, AlertTriangle, Loader2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-
-const BACKEND = process.env.REACT_APP_BACKEND_URL?.replace(/\/$/, '') || '';
+import { apiFetch } from '../lib/api';
 
 /**
  * Modal + trigger button used to invoke /api/actions/block-ip-real.
@@ -22,26 +20,16 @@ export default function BlockIpModal({ alert, open, onClose, onDone }) {
     setError('');
     setResult(null);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) throw new Error('Sesión expirada. Vuelve a iniciar sesión.');
-
-      const r = await fetch(`${BACKEND}/api/actions/block-ip-real`, {
+      const data = await apiFetch('/api/actions/block-ip-real', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
         body: JSON.stringify({
           attack_id: alert.id,
           source_ip: alert.source_ip,
           reason: alert.attack_type || 'attack',
         }),
       });
-      const data = await r.json();
-      if (!r.ok || data.success === false) {
-        throw new Error(data.detail || data.message || 'Error desconocido');
+      if (data.success === false) {
+        throw new Error(data.message || 'Error desconocido');
       }
       setResult(data);
       if (onDone) onDone(data);
