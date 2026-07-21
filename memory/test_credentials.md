@@ -4,7 +4,8 @@
 
 | Rol | Email | Password |
 |---|---|---|
-| Admin/Operador | `admin@gmail.com` | `Tekosecure2026!` |
+| Admin/Operador (principal) | `ti@nasser.com.py` | `NasserTi73491654` |
+| Admin/Operador (backup) | `admin@gmail.com` | `Tekosecure2026!` |
 
 Notas:
 - Autenticación con Supabase Auth (proyecto `fsucygjqzskwtnynvgob`, "Confirm email" desactivado).
