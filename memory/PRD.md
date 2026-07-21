@@ -63,6 +63,14 @@ Browser (React SOC dashboard)
 - Frontend: `MODE: DRY_RUN` badge in header, "BLOQUEAR IP" button per active alert, confirmation modal
 - Tests: 16/16 backend, all data-testids green (frontend)
 
+### 2026-07-21 — Fase 3 (session 2 · bug fix)
+- **Bug reportado**: "No veo el apartado de mikrotiks en el sistema, no hay nada"
+- New endpoint `GET /api/mikrotiks` — returns sanitized topology (no passwords) + security policy + current mode. JWT required.
+- New page `/mikrotiks` (`MikrotiksPage.jsx`) — 4 cards con IP LAN, IP pública, subnet, rol (VPN_SERVER_HUB / VPN_CLIENT), modelo, descripción, prioridad neón (CRITICAL/HIGH), badge HUB, contador BLOQ 24h por sucursal
+- New nav entry "MIKROTIKS" con icon `Router` (sidebar desktop + bottom nav mobile)
+- Panel "Política de Seguridad Activa" con thresholds y modo
+- Tests: 21/21 backend, frontend 100% (incluye test test_mikrotiks_no_password_leak)
+
 ## Backlog / Fase 3 (P0 → P2)
 - **P0**: [USER ACTION] Rotar password del user `nasserti` en los 4 Mikrotik (la anterior estuvo en GitHub público)
 - **P0**: [USER ACTION] Ejecutar `/app/scripts/create_actions_log.sql` en Supabase SQL Editor
