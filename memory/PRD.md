@@ -71,6 +71,14 @@ Browser (React SOC dashboard)
 - Panel "Política de Seguridad Activa" con thresholds y modo
 - Tests: 21/21 backend, frontend 100% (incluye test test_mikrotiks_no_password_leak)
 
+### 2026-07-21 — Fase 4 (session 2 · bug fix)
+- **Bug reportado**: "/mikrotiks muestra 'SIN GATEWAYS CONFIGURADOS' aunque el backend retorna count=4"
+- Root cause: JWT del usuario expirado en background (Supabase autoRefresh no dispara si el tab está inactivo) → backend 403 → UI caía a 'sin gateways' porque no distinguía error de config vacía
+- New helper `/app/frontend/src/lib/api.js` — `apiFetch()` con refresh proactivo (SKEW=60s antes de expirar) + retry único en 401/403 + `ApiError` con status/body/url
+- `MikrotiksPage.jsx` refactor: distingue estado **error** (`data-testid="mikrotiks-error"` + botón `mikrotiks-retry`) del estado **empty config** (sólo si respuesta OK y lista vacía)
+- `BlockIpModal.jsx` migrado también a `apiFetch`
+- Tests: 21/21 backend + frontend 100% incluyendo escenario forzado de fallo con `page.route` intercept
+
 ## Backlog / Fase 3 (P0 → P2)
 - **P0**: [USER ACTION] Rotar password del user `nasserti` en los 4 Mikrotik (la anterior estuvo en GitHub público)
 - **P0**: [USER ACTION] Ejecutar `/app/scripts/create_actions_log.sql` en Supabase SQL Editor
