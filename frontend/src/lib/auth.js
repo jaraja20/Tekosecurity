@@ -1,6 +1,9 @@
 // Auth utilities for TEKOSECURE
 // Uses Supabase JWT tokens
 
+import { useEffect, useState } from 'react';
+import { supabase } from './supabase';
+
 export async function getAuthToken() {
   const token = localStorage.getItem('auth_token');
   return token;
@@ -16,4 +19,39 @@ export function clearAuthToken() {
 
 export function isAuthenticated() {
   return !!getAuthToken();
+}
+
+// React hook for auth
+export function useAuth() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        setUser(user);
+      } catch (err) {
+        setError(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    checkAuth();
+
+    // Subscribe to auth changes
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  return { user, loading, error };
 }
