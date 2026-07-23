@@ -94,6 +94,21 @@ Browser (React SOC dashboard)
   - `/app/README-DEPLOY.md` — guía paso a paso: GitHub → Vercel → Windows/Docker → Cloudflare Tunnel → verificación E2E, endurecimiento, FAQ
 - Tests: 28/28 backend (21 regresión + 7 nuevos de reports) + frontend 100%
 
+### 2026-07-23 — Fase 6 (session 3 · mini-Zabbix per-Mikrotik)
+- **New module** `/app/backend/mikrotik_metrics.py` — generador determinista de métricas mockeadas (seed = MD5 del device name), stable entre refreshes
+- **New endpoint** `GET /api/mikrotiks/{name}` — device + metrics {system, isps, failover_events, vpns, login_attempts}, lookup case-insensitive, 404 en devices no configurados
+- **Topología por device**: MATRIZ_KM6/HERNANDARIAS con 2 ISPs, OASIS/KM12 con 1 ISP; HERNANDARIAS mockeado en failover activo hacia ISP2 con 3 eventos recientes; MATRIZ_KM6 hub con 3 túneles L2TP/IPsec (uno a cada cliente)
+- **New page** `/mikrotiks/:name` (`MikrotikDetailPage.jsx`):
+  - 5 gauges (CPU load · Memoria · Temp · Storage libre · Uptime) con umbrales de color
+  - Panel Conectividad · Proveedores: cada ISP con packet loss (bar), latencia, estado UP/DEGRADED, badge ACTIVO/STANDBY
+  - Panel Failovers recientes (últimas 12h) con timestamp relativo
+  - Panel VPNs activas con peer, uptime, TX/RX bytes
+  - Tabla intentos de acceso (SSH/Winbox/WebFig) con OK/FAIL coloreado
+  - Auto-refresh 20s toggle + refresh manual
+- Cards de `/mikrotiks` ahora son `<Link>` clickeables
+- **DRY_RUN placeholder** en REAL mode — SSH real queda como stub para Fase 7 (ejecutar `/system resource print`, `/ip route print`, `/interface print`, `/log print`)
+- Tests: 36/36 backend (28 regresión + 8 nuevos) + frontend 100%
+
 ## Backlog / Fase 3 (P0 → P2)
 - **P0**: [USER ACTION] Rotar password del user `nasserti` en los 4 Mikrotik (la anterior estuvo en GitHub público)
 - **P0**: [USER ACTION] Ejecutar `/app/scripts/create_actions_log.sql` en Supabase SQL Editor
