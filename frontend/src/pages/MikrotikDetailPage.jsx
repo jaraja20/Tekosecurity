@@ -11,7 +11,6 @@ import {
   Radio,
   ArrowUpDown,
   ShieldCheck,
-  Wifi,
   LogIn,
   XCircle,
   AlertTriangle,
