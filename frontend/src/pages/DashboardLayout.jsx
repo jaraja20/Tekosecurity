@@ -78,6 +78,8 @@ export default function DashboardLayout() {
       ? 'Panel de Operaciones'
       : location.pathname.includes('alerts')
       ? 'Alertas'
+      : location.pathname.startsWith('/mikrotiks/')
+      ? 'Detalle Mikrotik'
       : location.pathname.includes('mikrotiks')
       ? 'Mikrotik Gateways'
       : location.pathname.includes('nvrs')

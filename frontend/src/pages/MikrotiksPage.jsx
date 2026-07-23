@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Router,
@@ -356,11 +357,14 @@ export default function MikrotiksPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {list.map((mk) => (
-              <MikrotikCard
+              <Link
                 key={mk.name}
-                mk={mk}
-                blockCount={blocksByHost[mk.name] || 0}
-              />
+                to={`/mikrotiks/${encodeURIComponent(mk.name)}`}
+                data-testid={`mikrotik-link-${mk.name}`}
+                className="block hover:scale-[1.01] transition-transform"
+              >
+                <MikrotikCard mk={mk} blockCount={blocksByHost[mk.name] || 0} />
+              </Link>
             ))}
           </div>
         </>

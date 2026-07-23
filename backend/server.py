@@ -59,6 +59,7 @@ from config_secure import (  # noqa: E402
     load_mikrotik_config,
 )
 from mikrotik_actions import MikrotikActionManager  # noqa: E402
+import mikrotik_metrics  # noqa: E402
 import reports  # noqa: E402
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
@@ -210,6 +211,34 @@ async def list_mikrotiks(authorization: Optional[str] = Header(default=None)):
         "count": len(devices),
         "mikrotiks": devices,
         "security_policy": cfg.get("security_policy", {}),
+    }
+
+
+@app.get("/api/mikrotiks/{name}")
+async def get_mikrotik_detail(
+    name: str,
+    authorization: Optional[str] = Header(default=None),
+):
+    """Detail view of a single Mikrotik + live metrics (mocked in DRY_RUN)."""
+    await _verify_supabase_token(_bearer(authorization))
+    try:
+        cfg = load_mikrotik_config()
+    except SecretsError as exc:
+        raise HTTPException(status_code=500, detail=f"Config error: {exc}")
+
+    device = next(
+        (m for m in cfg.get("mikrotiks", []) if m["name"].upper() == name.upper()),
+        None,
+    )
+    if device is None:
+        raise HTTPException(status_code=404, detail=f"Mikrotik '{name}' not found")
+
+    safe = {k: v for k, v in device.items() if k != "password"}
+    metrics = mikrotik_metrics.collect_metrics(safe, dry_run=is_dry_run())
+    return {
+        "device": safe,
+        "mode": "DRY_RUN" if is_dry_run() else "REAL_ACTIONS",
+        "metrics": metrics,
     }
 
 

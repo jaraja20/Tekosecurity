@@ -1,0 +1,29 @@
+{
+  "summary": "Iteración 6 — Fase 6 (mini-Zabbix per-Mikrotik metrics) validada end-to-end. Backend: 36/36 pytest verdes (28 regresión Fase 1-5 + 8 nuevos de /api/mikrotiks/{name}). Frontend: /mikrotiks tarjetas ahora envueltas en Links (data-testid mikrotik-link-<NAME>), navegación a /mikrotiks/HERNANDARIAS muestra 5 gauges, 2 ISP rows, 3 failovers, 1 VPN, 10 login attempts; auto-refresh checkbox toggle funciona, botón RELOAD hace re-fetch, breadcrumb back navega a /mikrotiks; 404 UX muestra 'ERROR — HTTP 404 Mikrotik NOEXISTE no encontrado'; título dinámico 'Detalle Mikrotik' presente. Regresión completa Fase 1-5 sigue verde.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_mikrotik_detail.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_reports.py",
+    "/app/test_reports/pytest/mikrotik_detail_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "mikrotik_metrics.py: seed determinista con hashlib.md5 seedeado por device name — verificado que dos llamadas seguidas retornan valores idénticos para system/isps/failovers/vpns/login_attempts (test_determinism pasa).",
+    "server.py GET /api/mikrotiks/{name}: correctamente valida JWT, hace lookup case-insensitive (upper()), retorna 404 con 'detail' explícito, strippea password del device dict, marca mode DRY_RUN/REAL_ACTIONS.",
+    "MikrotikDetailPage.jsx: auto-refresh 20s vía setInterval con cleanup correcto en useEffect, ApiError.status===404 mapea a mensaje descriptivo, todos los data-testid requeridos presentes (mikrotik-detail-page, mikrotik-system, isp-row-*, failover-*, vpn-*, login-*, mikrotik-back, mikrotik-autorefresh, mikrotik-detail-refresh, mikrotik-detail-error).",
+    "MikrotiksPage.jsx: cards envueltas correctamente en <Link> con encodeURIComponent(mk.name); hover:scale-[1.01] transición suave. testid mikrotik-link-<NAME> presente para los 4 devices.",
+    "Menor (no bloqueante): la página de detalle usa e.g. warn=100/crit=100 en storage/uptime lo cual siempre pintará verde — considerar warn/crit invertidos para storage_free_pct (bajo storage = crítico), aunque semánticamente 'STORAGE LIBRE' alto es bueno, la lógica actual es correcta pero los umbrales podrían ser warn<25/crit<10. No es un bug, solo UX.",
+    "Menor (regresión ya reportada): pasar JWT via ?token_qs= en /api/reports/export.xlsx sigue vigente — considerar short-lived download tokens en producción."
+  ],
+  "updated_files": ["/app/backend/tests/test_mikrotik_detail.py"],
+  "success_rate": {"backend": "100% (36/36)", "frontend": "100%"},
+  "test_credentials": "ti@nasser.com.py / NasserTi73491654",
+  "seed_data_creation": "Ninguna. El mock es determinista seedeado por nombre del device.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Fase 6 (mini-Zabbix) completa. Nuevos: GET /api/mikrotiks/{name} con métricas mock determinista + /mikrotiks/:name UI page. Tests en /app/backend/tests/test_mikrotik_detail.py (8 tests). MATRIZ_KM6 tiene 3 VPN server tunnels a OASIS/KM12/HERNANDARIAS, OASIS tiene 1 VPN client, HERNANDARIAS forzado a failover activo hacia ISP2 con 3 failover events. Login attempts varían por device (n = 5-12). Total suite: 36 tests verdes (backend_test.py 21 + test_reports.py 7 + test_mikrotik_detail.py 8).",
+  "rca of the issue": "N/A — sin bugs encontrados."
+}

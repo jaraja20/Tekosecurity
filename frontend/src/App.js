@@ -8,6 +8,7 @@ import DashboardHome from './pages/DashboardHome';
 import AlertsPage from './pages/AlertsPage';
 import NvrPage from './pages/NvrPage';
 import MikrotiksPage from './pages/MikrotiksPage';
+import MikrotikDetailPage from './pages/MikrotikDetailPage';
 import ReportsPage from './pages/ReportsPage';
 
 function ProtectedRoute({ children }) {
@@ -68,6 +69,7 @@ export default function App() {
             <Route path="alerts" element={<AlertsPage />} />
             <Route path="nvrs" element={<NvrPage />} />
             <Route path="mikrotiks" element={<MikrotiksPage />} />
+            <Route path="mikrotiks/:name" element={<MikrotikDetailPage />} />
             <Route path="reports" element={<ReportsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
