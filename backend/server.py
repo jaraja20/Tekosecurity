@@ -30,6 +30,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -58,16 +59,21 @@ from config_secure import (  # noqa: E402
     load_mikrotik_config,
 )
 from mikrotik_actions import MikrotikActionManager  # noqa: E402
+import reports  # noqa: E402
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")  # optional
 
+# CORS: comma-separated list of allowed origins ("*" for any).
+_cors_raw = os.environ.get("CORS_ORIGINS", "*").strip()
+CORS_ORIGINS = ["*"] if _cors_raw == "*" else [o.strip() for o in _cors_raw.split(",") if o.strip()]
+
 app = FastAPI(title="TEKOSECURE API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -389,3 +395,73 @@ async def get_audit_log(
     if r.status_code >= 400:
         return {"success": False, "entries": [], "error": r.text[:200]}
     return {"success": True, "entries": r.json()}
+
+
+# ---------------------------------------------------------------------------
+# Reports (aggregated stats + xlsx export)
+# ---------------------------------------------------------------------------
+@app.get("/api/reports/summary")
+async def reports_summary(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    days: int = 30,
+    authorization: Optional[str] = Header(default=None),
+):
+    """Aggregated attack stats — used to render the reports page."""
+    token = _bearer(authorization)
+    await _verify_supabase_token(token)
+
+    if not date_from and not date_to:
+        date_from, date_to = reports.default_range(days=max(1, min(days, 365)))
+
+    try:
+        attacks = await reports.fetch_attacks(token, date_from, date_to, limit=2000)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    summary = reports.build_summary(attacks)
+    return {
+        "success": True,
+        "range": {"from": date_from, "to": date_to},
+        "summary": summary,
+    }
+
+
+@app.get("/api/reports/export.xlsx")
+async def reports_export_xlsx(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    days: int = 30,
+    authorization: Optional[str] = Header(default=None),
+    token_qs: Optional[str] = None,
+):
+    """
+    Streams an Excel workbook with 5 sheets:
+      Resumen · Tipos por Severidad · Top IPs · Serie temporal · Detalle
+
+    Accepts the JWT either via Authorization header (normal) OR as ?token_qs=
+    query param (needed because <a download> anchors can't set headers).
+    """
+    token = _bearer(authorization) or (token_qs or "").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing token")
+    await _verify_supabase_token(token)
+
+    if not date_from and not date_to:
+        date_from, date_to = reports.default_range(days=max(1, min(days, 365)))
+
+    try:
+        attacks = await reports.fetch_attacks(token, date_from, date_to, limit=5000)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    summary = reports.build_summary(attacks)
+    xlsx_bytes = reports.build_xlsx(attacks, summary, date_from, date_to)
+    filename = reports.suggested_filename(date_from, date_to)
+
+    return StreamingResponse(
+        iter([xlsx_bytes]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(xlsx_bytes)),
+        },
+    )

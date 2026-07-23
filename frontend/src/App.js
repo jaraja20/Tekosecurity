@@ -8,6 +8,7 @@ import DashboardHome from './pages/DashboardHome';
 import AlertsPage from './pages/AlertsPage';
 import NvrPage from './pages/NvrPage';
 import MikrotiksPage from './pages/MikrotiksPage';
+import ReportsPage from './pages/ReportsPage';
 
 function ProtectedRoute({ children }) {
   const { session, loading } = useAuth();
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="alerts" element={<AlertsPage />} />
             <Route path="nvrs" element={<NvrPage />} />
             <Route path="mikrotiks" element={<MikrotiksPage />} />
+            <Route path="reports" element={<ReportsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

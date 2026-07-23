@@ -9,6 +9,7 @@ import {
   Cpu,
   ShieldAlert,
   Router,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
@@ -19,6 +20,7 @@ const NAV = [
   { to: '/alerts', label: 'Alertas', icon: Bell, testid: 'nav-alerts' },
   { to: '/mikrotiks', label: 'Mikrotiks', icon: Router, testid: 'nav-mikrotiks' },
   { to: '/nvrs', label: 'NVRs', icon: Cpu, testid: 'nav-nvrs' },
+  { to: '/reports', label: 'Reportes', icon: FileSpreadsheet, testid: 'nav-reports' },
 ];
 
 function Clock() {
@@ -80,6 +82,8 @@ export default function DashboardLayout() {
       ? 'Mikrotik Gateways'
       : location.pathname.includes('nvrs')
       ? 'NVRs Hikvision'
+      : location.pathname.includes('reports')
+      ? 'Reportes'
       : 'TEKOSECURE';
 
   return (
