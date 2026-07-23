@@ -1,8 +1,10 @@
 // Auth utilities for TEKOSECURE
 // Uses Supabase JWT tokens
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, createContext, useContext } from 'react';
 import { supabase } from './supabase';
+
+const AuthContext = createContext(null);
 
 export async function getAuthToken() {
   const token = localStorage.getItem('auth_token');
@@ -54,4 +56,20 @@ export function useAuth() {
   }, []);
 
   return { user, loading, error };
+}
+
+// Auth Provider Component
+export function AuthProvider({ children }) {
+  const auth = useAuth();
+
+  return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
+}
+
+// Hook to use auth context
+export function useAuthContext() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuthContext debe usarse dentro de AuthProvider');
+  }
+  return context;
 }
