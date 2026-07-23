@@ -79,6 +79,21 @@ Browser (React SOC dashboard)
 - `BlockIpModal.jsx` migrado también a `apiFetch`
 - Tests: 21/21 backend + frontend 100% incluyendo escenario forzado de fallo con `page.route` intercept
 
+### 2026-07-23 — Fase 5 (session 3 · Reports + Deploy package)
+- **New module** `/app/backend/reports.py` — aggregates from Supabase `attacks` table: totales por tipo, severidad, status, top 15 IPs, cross-tab tipo×severidad, serie temporal diaria
+- **New endpoint** `GET /api/reports/summary?days=30` (JWT) — devuelve el summary JSON
+- **New endpoint** `GET /api/reports/export.xlsx?days=30` (JWT via header o `?token_qs=`) — genera Excel con **5 hojas**: Resumen · Tipos por Severidad · Top IPs · Serie temporal · Detalle. Coloreado por severidad, freeze panes en Detalle, filename dinámico
+- **New page** `/reports` (`ReportsPage.jsx`) — KPIs neón por severidad, barras horizontales de tipos y top-IPs, matriz cruzada con chips coloreados, serie temporal (bar chart CSS-only), filtros preset (24h/7d/30d/90d) + date-range custom, botón DESCARGAR EXCEL
+- **New nav entry** "REPORTES" con icono `FileSpreadsheet`
+- **CORS parametrizable**: `CORS_ORIGINS` desde env (default `*` en dev; para producción → `https://tekosecurity.vercel.app`)
+- **Paquete de deploy** listo para on-prem híbrido gratis:
+  - `/app/frontend/vercel.json` (Create React App preset, rewrites, cache headers)
+  - `/app/frontend/.env.production.example`
+  - `/app/backend/Dockerfile` + `docker-compose.yml`
+  - `/app/backend/start_windows.bat` (venv + uvicorn autoinstall)
+  - `/app/README-DEPLOY.md` — guía paso a paso: GitHub → Vercel → Windows/Docker → Cloudflare Tunnel → verificación E2E, endurecimiento, FAQ
+- Tests: 28/28 backend (21 regresión + 7 nuevos de reports) + frontend 100%
+
 ## Backlog / Fase 3 (P0 → P2)
 - **P0**: [USER ACTION] Rotar password del user `nasserti` en los 4 Mikrotik (la anterior estuvo en GitHub público)
 - **P0**: [USER ACTION] Ejecutar `/app/scripts/create_actions_log.sql` en Supabase SQL Editor
