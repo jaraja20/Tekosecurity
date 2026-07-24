@@ -1,6 +1,7 @@
 /**
- * Real-time metrics streaming via Server-Sent Events (SSE)
- * Connects to /api/mikrotiks/{name}/metrics-stream and updates in real-time (every 3 seconds)
+ * Real-time metrics streaming via fetch + ReadableStream
+ * Connects to /api/mikrotiks/{name}/metrics-stream and updates in real-time (every 1 second)
+ * Uses fetch instead of EventSource because EventSource doesn't support custom headers (needed for localtunnel)
  */
 
 export class MetricsStream {
@@ -10,60 +11,88 @@ export class MetricsStream {
     this.token = token;
     this.onData = onData;
     this.onError = onError;
-    this.eventSource = null;
+    this.abortController = null;
   }
 
-  connect() {
+  async connect() {
     const url = `${this.apiBase}/api/mikrotiks/${this.deviceName}/metrics-stream`;
 
     console.log(`[MetricsStream] Connecting to ${url}`);
 
-    this.eventSource = new EventSource(url, {
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        "bypass-tunnel-reminder": "true",
-      },
-    });
+    this.abortController = new AbortController();
 
-    // Handle incoming metrics
-    this.eventSource.addEventListener("message", (event) => {
-      try {
-        const metrics = JSON.parse(event.data);
-        if (this.onData) {
-          this.onData(metrics);
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          "bypass-tunnel-reminder": "true",
+          Accept: "text/event-stream",
+        },
+        signal: this.abortController.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      console.log("[MetricsStream] Connected");
+
+      // Read the stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+
+        // Keep the last incomplete line in the buffer
+        buffer = lines[lines.length - 1];
+
+        for (let i = 0; i < lines.length - 1; i++) {
+          const line = lines[i].trim();
+
+          if (line.startsWith("data: ")) {
+            const jsonStr = line.slice(6);
+            try {
+              const metrics = JSON.parse(jsonStr);
+              if (this.onData) {
+                this.onData(metrics);
+              }
+            } catch (error) {
+              console.error("[MetricsStream] Parse error:", error);
+              if (this.onError) {
+                this.onError(error);
+              }
+            }
+          }
         }
-      } catch (error) {
-        console.error("[MetricsStream] Parse error:", error);
+      }
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        console.error("[MetricsStream] Connection error:", error);
         if (this.onError) {
           this.onError(error);
         }
       }
-    });
-
-    // Handle errors
-    this.eventSource.addEventListener("error", (error) => {
-      console.error("[MetricsStream] Connection error:", error);
-      if (this.onError) {
-        this.onError(error);
-      }
+    } finally {
       this.disconnect();
-    });
-
-    // Initial connection log
-    this.eventSource.addEventListener("open", () => {
-      console.log("[MetricsStream] Connected");
-    });
+    }
   }
 
   disconnect() {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
       console.log("[MetricsStream] Disconnected");
     }
   }
 
   isConnected() {
-    return this.eventSource !== null;
+    return this.abortController !== null;
   }
 }

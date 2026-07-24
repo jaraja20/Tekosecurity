@@ -147,7 +147,10 @@ export default function MikrotikDetailPage() {
       }
     );
 
-    streamRef.current.connect();
+    // Start the async connection
+    streamRef.current.connect().catch((error) => {
+      console.error('[MikrotikDetail] Failed to connect stream:', error);
+    });
 
     return () => {
       if (streamRef.current) {
