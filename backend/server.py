@@ -18,6 +18,7 @@ we fall back to a local file `logs/audit.log` so nothing is ever lost.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -42,7 +43,7 @@ BACKEND_DIR = Path(__file__).resolve().parent
 LOG_DIR = BACKEND_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-load_dotenv(BACKEND_DIR / ".env")
+load_dotenv(BACKEND_DIR.parent / ".env")
 
 # --- Logging (safe: dir is created above) ---
 logging.basicConfig(
@@ -77,14 +78,14 @@ CORS_ORIGINS = security.ALLOWED_ORIGINS
 app = FastAPI(title="TEKOSECURE API", version="2.0.0")
 
 # Security Middleware - Orden importante
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "tekosecurity.vercel.app", "api-tekosecure.localhost.run"])
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "tekosecurity.vercel.app", "api-tekosecure.localhost.run", "*.loca.lt"])
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],  # Métodos específicos
-    allow_headers=["Authorization", "Content-Type"],  # Headers específicos
+    allow_headers=["Authorization", "Content-Type", "bypass-tunnel-reminder"],  # Headers específicos
 )
 
 # Middleware para security headers
@@ -208,24 +209,29 @@ async def me(authorization: Optional[str] = Header(default=None)):
 @app.get("/api/mikrotiks")
 async def list_mikrotiks(authorization: Optional[str] = Header(default=None)):
     """Return the sanitized Mikrotik topology (NO passwords) + current mode."""
-    await _verify_supabase_token(_bearer(authorization))
     try:
+        logger.info(f"GET /api/mikrotiks - verifying token...")
+        await _verify_supabase_token(_bearer(authorization))
+        logger.info(f"Token verified, loading config...")
         cfg = load_mikrotik_config()
-    except SecretsError as exc:
-        raise HTTPException(status_code=500, detail=f"Config error: {exc}")
+        logger.info(f"Config loaded, building response...")
 
-    devices = []
-    for mk in cfg.get("mikrotiks", []):
-        # Explicitly strip password from response
-        safe = {k: v for k, v in mk.items() if k != "password"}
-        devices.append(safe)
+        devices = []
+        for mk in cfg.get("mikrotiks", []):
+            # Explicitly strip password from response
+            safe = {k: v for k, v in mk.items() if k != "password"}
+            devices.append(safe)
 
-    return {
-        "mode": "DRY_RUN" if is_dry_run() else "REAL_ACTIONS",
-        "count": len(devices),
-        "mikrotiks": devices,
-        "security_policy": cfg.get("security_policy", {}),
-    }
+        logger.info(f"Returning {len(devices)} devices")
+        return {
+            "mode": "DRY_RUN" if is_dry_run() else "REAL_ACTIONS",
+            "count": len(devices),
+            "mikrotiks": devices,
+            "security_policy": cfg.get("security_policy", {}),
+        }
+    except Exception as e:
+        logger.error(f"ERROR in list_mikrotiks: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/mikrotiks/{name}")
@@ -233,7 +239,7 @@ async def get_mikrotik_detail(
     name: str,
     authorization: Optional[str] = Header(default=None),
 ):
-    """Detail view of a single Mikrotik + live metrics (mocked in DRY_RUN)."""
+    """Detail view of a single Mikrotik + live metrics (real via SSH or mocked)."""
     await _verify_supabase_token(_bearer(authorization))
     try:
         cfg = load_mikrotik_config()
@@ -248,12 +254,71 @@ async def get_mikrotik_detail(
         raise HTTPException(status_code=404, detail=f"Mikrotik '{name}' not found")
 
     safe = {k: v for k, v in device.items() if k != "password"}
-    metrics = mikrotik_metrics.collect_metrics(safe, dry_run=is_dry_run())
+    # Pass password to collect_metrics if REAL mode (not dry_run)
+    metrics = mikrotik_metrics.collect_metrics(
+        safe,
+        dry_run=is_dry_run(),
+        password=device.get("password") if not is_dry_run() else None,
+    )
     return {
         "device": safe,
         "mode": "DRY_RUN" if is_dry_run() else "REAL_ACTIONS",
         "metrics": metrics,
     }
+
+
+@app.get("/api/mikrotiks/{name}/metrics-stream")
+async def metrics_stream(
+    name: str,
+    authorization: Optional[str] = Header(default=None),
+):
+    """Server-Sent Events stream for real-time metrics. Sends updates every 3 seconds."""
+    import asyncio
+
+    await _verify_supabase_token(_bearer(authorization))
+
+    async def event_generator():
+        try:
+            cfg = load_mikrotik_config()
+            device = next(
+                (m for m in cfg.get("mikrotiks", []) if m["name"].upper() == name.upper()),
+                None,
+            )
+            if device is None:
+                yield f"data: {json.dumps({'error': 'Device not found'})}\n\n"
+                return
+
+            # Stream metrics every 3 seconds
+            while True:
+                try:
+                    safe = {k: v for k, v in device.items() if k != "password"}
+                    metrics = mikrotik_metrics.collect_metrics(
+                        safe,
+                        dry_run=is_dry_run(),
+                        password=device.get("password") if not is_dry_run() else None,
+                    )
+
+                    # Send SSE event
+                    yield f"data: {json.dumps(metrics)}\n\n"
+
+                    # Wait 3 seconds before next update
+                    await asyncio.sleep(3)
+                except Exception as e:
+                    logger.error(f"Error in metrics stream: {e}")
+                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                    break
+        except Exception as e:
+            logger.error(f"Stream error for {name}: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/api/actions/close-alert")
