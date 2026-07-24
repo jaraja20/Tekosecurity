@@ -256,33 +256,57 @@ def _parse_system_metrics(device: dict, client: "paramiko.SSHClient") -> Optiona
 
 
 def _parse_isps_real(device: dict, client: "paramiko.SSHClient") -> list[dict]:
-    """Parse REAL ISPs from RouterOS /interface print output."""
+    """Parse REAL ISPs from RouterOS /interface and /ip route print output."""
     try:
         iface_output = _ssh_exec(client, "/interface print")
-        isps = []
+        route_output = _ssh_exec(client, "/ip route print")
 
-        # Look for interfaces with "Internet" in name and running (R flag)
+        # Find all Internet interfaces
+        isps = []
         for line in iface_output.split('\n'):
             if 'Internet' in line and (' R ' in line or ' RS' in line or 'pppoe-out' in line):
-                # Extract interface name
                 parts = line.split()
                 if len(parts) > 1:
-                    # Interface name is typically after the number
                     name = ' '.join(parts[2:-2]) if len(parts) > 3 else parts[2]
                     if name and 'Internet' in name:
                         isps.append({
                             "name": name,
                             "gateway": "N/A",
-                            "type": "Active",
-                            "active": True,
+                            "type": "Internet",
+                            "active": False,  # Will be determined from routes
                             "packet_loss_pct": 0,
                             "latency_ms": 30,
                             "status": "UP",
                         })
 
-        # If we found ISPs, return them; otherwise return mock
+        # Determine which ISP is currently active from routing table
+        # Look for active default route (0.0.0.0/0 with 'A' flag)
+        active_interface = None
+        for line in route_output.split('\n'):
+            # Look for active default route
+            if ' A ' in line and '0.0.0.0/0' in line:
+                # Extract interface name from the route line
+                parts = line.split()
+                if len(parts) > 4:
+                    # Interface name is usually near the end or indicated by "Internet"
+                    for part in parts:
+                        if 'Internet' in part:
+                            active_interface = part
+                            break
+
+        # Mark the active ISP
         if isps:
+            for isp in isps:
+                isp["active"] = (active_interface and active_interface in isp["name"]) or (
+                    len(isps) == 1
+                )  # If only one ISP, mark it as active
+
+            # If no clear active was determined, mark first as active
+            if not any(isp["active"] for isp in isps):
+                isps[0]["active"] = True
+
             return isps
+
         return _isps_for(device["name"])  # Fallback to mock
     except Exception as e:
         logger.warning(f"Error getting real ISPs: {e}")
