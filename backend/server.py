@@ -288,7 +288,7 @@ async def metrics_stream(
                 yield f"data: {json.dumps({'error': 'Device not found'})}\n\n"
                 return
 
-            # Stream metrics every 3 seconds
+            # Stream metrics every 1 second (real-time)
             while True:
                 try:
                     safe = {k: v for k, v in device.items() if k != "password"}
@@ -301,8 +301,8 @@ async def metrics_stream(
                     # Send SSE event
                     yield f"data: {json.dumps(metrics)}\n\n"
 
-                    # Wait 3 seconds before next update
-                    await asyncio.sleep(3)
+                    # Wait 1 second before next update (true real-time)
+                    await asyncio.sleep(1)
                 except Exception as e:
                     logger.error(f"Error in metrics stream: {e}")
                     yield f"data: {json.dumps({'error': str(e)})}\n\n"

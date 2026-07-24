@@ -18,7 +18,7 @@ import {
 import { apiFetch, ApiError } from '../lib/api';
 import { MetricsStream } from '../lib/metricsStream';
 
-const REFRESH_MS = 3_000; // SSE now sends every 3 seconds (real-time)
+const REFRESH_MS = 1_000; // SSE now sends every 1 second (true real-time)
 
 function fmtBytes(bytes) {
   if (bytes == null) return '—';
@@ -508,7 +508,7 @@ export default function MikrotikDetailPage() {
           </section>
 
           <div className="mono text-[10px] tracking-widest text-ink-muted text-center">
-            Fuente: {m.source} · Actualizado cada 3s en tiempo real
+            Fuente: {m.source} · Actualizado cada 1s en tiempo real
             {m.source === 'DRY_RUN' && ' · métricas simuladas (activá SSH real on-prem para valores reales)'}
           </div>
         </>
