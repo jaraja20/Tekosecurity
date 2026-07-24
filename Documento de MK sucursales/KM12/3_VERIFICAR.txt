@@ -1,0 +1,92 @@
+===============================================================================
+TEKOSECURE - KM12
+VERIFICAR QUE TODO ESTÁ CONFIGURADO CORRECTAMENTE
+===============================================================================
+
+Ejecuta estos comandos EN ORDEN para verificar la configuración:
+
+===============================================================================
+1. VERIFICAR IDENTIDAD (Nombre del MK)
+===============================================================================
+
+/system identity print
+
+Debes ver:
+  name: TEKOSECURE-KM12
+
+===============================================================================
+2. VERIFICAR DIRECCIONES IP
+===============================================================================
+
+/ip address print
+
+Debes ver dos líneas similar a:
+  0 X 192.168.15.1/24 LAN KM12 ether2
+  1 X 0.0.0.0/0 DHCP WAN ether1
+
+===============================================================================
+3. VERIFICAR REGLAS FIREWALL (CRÍTICO)
+===============================================================================
+
+/ip firewall filter print
+
+Debes ver AL MENOS 10 líneas con:
+  - Allow ping
+  - Allow established
+  - Allow from LAN
+  - Drop input default
+  - WAN to LAN
+  - LAN to WAN
+  - Allow SSH/HTTP/HTTPS
+  - Drop invalid
+  - (+ reglas que ya existían)
+
+===============================================================================
+4. VERIFICAR NAT
+===============================================================================
+
+/ip firewall nat print
+
+Debes ver:
+  0 X masquerade srcnat ... ether1 Masquerade to WAN
+
+===============================================================================
+5. VERIFICAR DNS
+===============================================================================
+
+/ip dns print
+
+Debes ver:
+  servers: 8.8.8.8,8.8.4.4
+  allow-remote-requests: true
+
+===============================================================================
+6. VERIFICAR NTP
+===============================================================================
+
+/system ntp client print
+
+Debes ver:
+  enabled: true
+  server-dns-names: pool.ntp.org
+
+===============================================================================
+7. VERIFICAR SNMP
+===============================================================================
+
+/snmp print
+
+Debes ver:
+  enabled: true
+  trap-enabled: true
+  trap-community: public
+
+===============================================================================
+✅ SI TODO ESTÁ BIEN, LA CONFIGURACIÓN ESTÁ LISTA
+===============================================================================
+
+PRÓXIMOS PASOS:
+1. Repite este proceso en HERNANDARIAS
+2. Luego integra backend/server.py con mikrotik_actions.py
+3. Actualiza Emergent App para llamar al endpoint real
+4. Prueba bloqueando IPs desde el dashboard

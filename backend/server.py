@@ -28,10 +28,15 @@ from typing import Optional
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+# Add backend to path so we can import modules
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from backend import security  # noqa: E402
 
 BACKEND_DIR = Path(__file__).resolve().parent
 LOG_DIR = BACKEND_DIR / "logs"
@@ -52,34 +57,43 @@ logger = logging.getLogger("tekosecure")
 
 # Import local modules
 sys.path.insert(0, str(BACKEND_DIR))
-from config_secure import (  # noqa: E402
+from backend.config_secure import (  # noqa: E402
     SecretsError,
     as_connection_map,
     is_dry_run,
     load_mikrotik_config,
 )
-from mikrotik_actions import MikrotikActionManager  # noqa: E402
-import mikrotik_metrics  # noqa: E402
-import reports  # noqa: E402
+from backend.mikrotik_actions import MikrotikActionManager  # noqa: E402
+from backend import mikrotik_metrics  # noqa: E402
+from backend import reports  # noqa: E402
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")  # optional
 
-# CORS: comma-separated list of allowed origins ("*" for any).
-_cors_raw = os.environ.get("CORS_ORIGINS", "*").strip()
-CORS_ORIGINS = ["*"] if _cors_raw == "*" else [o.strip() for o in _cors_raw.split(",") if o.strip()]
+# CORS: RESTRINGIDO SOLO A DOMINIOS PERMITIDOS
+CORS_ORIGINS = security.ALLOWED_ORIGINS
 
 app = FastAPI(title="TEKOSECURE API", version="2.0.0")
+
+# Security Middleware - Orden importante
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "tekosecurity.vercel.app", "api-tekosecure.localhost.run"])
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],  # Métodos específicos
+    allow_headers=["Authorization", "Content-Type"],  # Headers específicos
 )
 
+# Middleware para security headers
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for header, value in security.SECURITY_HEADERS.items():
+        response.headers[header] = value
+    return response
 
 # ---------------------------------------------------------------------------
 # Models

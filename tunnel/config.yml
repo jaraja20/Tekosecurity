@@ -1,0 +1,5 @@
+﻿tunnel: 35695bbe-33d1-409e-a6a8-94c5c6069008
+credentials-file: C:\Users\TI\Desktop\Tekosecure\tunnel\.cloudflare\35695bbe-33d1-409e-a6a8-94c5c6069008.json
+ingress:
+  - service: http://localhost:8001
+  - service: http_status:404

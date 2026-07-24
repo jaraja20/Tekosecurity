@@ -1,0 +1,69 @@
+===============================================================================
+TEKOSECURE - KM12
+COMANDOS PARA COPIAR Y PEGAR EN TERMINAL
+===============================================================================
+
+📌 INSTRUCCIONES:
+1. Conecta SSH: ssh nasserti@192.168.15.1
+2. Espera a ver: [nasserti@...] >
+3. COPIA UNO DE LOS COMANDOS ABAJO (NO TODOS A LA VEZ)
+4. PEGA en la terminal
+5. Presiona ENTER
+6. Espera a que aparezca el prompt nuevamente
+7. Pasa al siguiente comando
+
+===============================================================================
+PASO 1: Configuración Básica
+===============================================================================
+
+/system identity set name="TEKOSECURE-KM12"
+
+/ip dns set servers=8.8.8.8,8.8.4.4 allow-remote-requests=yes
+
+/system ntp client set enabled=yes server-dns-names=pool.ntp.org
+
+===============================================================================
+PASO 2: Configuración de Interfaces
+===============================================================================
+
+/ip address add address=192.168.15.1/24 interface=ether2 comment="LAN KM12"
+
+/ip dhcp-client add interface=ether1 disabled=no
+
+===============================================================================
+PASO 3: Firewall - Input Chain (Tráfico Entrante)
+===============================================================================
+
+/ip firewall filter add action=accept chain=input protocol=icmp comment="Allow ping"
+
+/ip firewall filter add action=accept chain=input connection-state=established,related comment="Allow established"
+
+/ip firewall filter add action=accept chain=input in-interface=ether2 comment="Allow from LAN"
+
+/ip firewall filter add action=drop chain=input comment="Drop input default"
+
+===============================================================================
+PASO 4: Firewall - Forward Chain (Tráfico que Pasa)
+===============================================================================
+
+/ip firewall filter add action=accept chain=forward connection-state=established,related
+
+/ip firewall filter add action=accept chain=forward in-interface=ether1 out-interface=ether2 comment="WAN to LAN"
+
+/ip firewall filter add action=accept chain=forward in-interface=ether2 out-interface=ether1 comment="LAN to WAN"
+
+/ip firewall filter add action=accept chain=forward protocol=tcp dst-port=22,80,443 comment="Allow SSH/HTTP/HTTPS"
+
+/ip firewall filter add action=drop chain=forward connection-state=invalid comment="Drop invalid"
+
+===============================================================================
+PASO 5: NAT y SNMP
+===============================================================================
+
+/ip firewall nat add action=masquerade chain=srcnat out-interface=ether1 comment="Masquerade to WAN"
+
+/snmp set enabled=yes trap-enabled=yes trap-community=public
+
+===============================================================================
+✅ COMPLETADO - VER 3_VERIFICAR.txt
+===============================================================================
