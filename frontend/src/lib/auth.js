@@ -1,11 +1,57 @@
-// Auth utilities for TEKOSECURE
-// Uses Supabase JWT tokens
-
 import React, { useEffect, useState, createContext, useContext } from 'react';
 import { supabase } from './supabase';
 
 const AuthContext = createContext(null);
 
+// Sign in function
+export async function signIn(email, password) {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) return { error };
+
+    // Store token
+    if (data.session) {
+      localStorage.setItem('auth_token', data.session.access_token);
+    }
+
+    return { data };
+  } catch (err) {
+    return { error: err };
+  }
+}
+
+// Sign up function
+export async function signUp(email, password) {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) return { error };
+
+    // Store token if immediately confirmed
+    if (data.session) {
+      localStorage.setItem('auth_token', data.session.access_token);
+    }
+
+    return { data };
+  } catch (err) {
+    return { error: err };
+  }
+}
+
+// Sign out function
+export async function signOut() {
+  localStorage.removeItem('auth_token');
+  return await supabase.auth.signOut();
+}
+
+// Get auth token
 export async function getAuthToken() {
   const token = localStorage.getItem('auth_token');
   return token;
@@ -48,6 +94,11 @@ export function useAuth() {
     // Subscribe to auth changes
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user || null);
+      if (session?.access_token) {
+        setAuthToken(session.access_token);
+      } else {
+        clearAuthToken();
+      }
     });
 
     return () => {
@@ -55,7 +106,7 @@ export function useAuth() {
     };
   }, []);
 
-  return { user, loading, error };
+  return { user, loading, error, signIn, signUp, signOut };
 }
 
 // Auth Provider Component
