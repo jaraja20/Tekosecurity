@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -16,8 +16,9 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { apiFetch, ApiError } from '../lib/api';
+import { MetricsStream } from '../lib/metricsStream';
 
-const REFRESH_MS = 20_000;
+const REFRESH_MS = 3_000; // SSE now sends every 3 seconds (real-time)
 
 function fmtBytes(bytes) {
   if (bytes == null) return '—';
@@ -74,6 +75,7 @@ export default function MikrotikDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const streamRef = useRef(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -97,11 +99,63 @@ export default function MikrotikDetailPage() {
     load();
   }, [name]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Real-time metrics via Server-Sent Events
   useEffect(() => {
-    if (!autoRefresh) return undefined;
-    const i = setInterval(load, REFRESH_MS);
-    return () => clearInterval(i);
-  }, [autoRefresh, load]);
+    if (!autoRefresh) {
+      if (streamRef.current) {
+        streamRef.current.disconnect();
+        streamRef.current = null;
+      }
+      return undefined;
+    }
+
+    // Get API base URL from current window location
+    const apiBase = window.location.origin.includes('vercel.app')
+      ? 'https://icy-experts-go.loca.lt'
+      : 'http://localhost:8001';
+
+    // Get JWT token from localStorage
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      console.warn('[MikrotikDetail] No access token found');
+      return undefined;
+    }
+
+    // Connect to SSE stream
+    streamRef.current = new MetricsStream(
+      name,
+      apiBase,
+      token,
+      (metrics) => {
+        // Update only the metrics part, keep device info
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                metrics,
+              }
+            : null
+        );
+        setLoading(false);
+      },
+      (error) => {
+        console.error('[MikrotikDetail] Stream error:', error);
+        setError({
+          status: 500,
+          message: 'Error en stream de métricas en tiempo real',
+        });
+      }
+    );
+
+    streamRef.current.connect();
+
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.disconnect();
+        streamRef.current = null;
+      }
+    };
+  }, [autoRefresh, name]);
 
   const dev = data?.device;
   const m = data?.metrics;
@@ -454,7 +508,7 @@ export default function MikrotikDetailPage() {
           </section>
 
           <div className="mono text-[10px] tracking-widest text-ink-muted text-center">
-            Fuente: {m.source} · Snapshot {timeAgoLocal(m.generated_at)}
+            Fuente: {m.source} · Actualizado cada 3s en tiempo real
             {m.source === 'DRY_RUN' && ' · métricas simuladas (activá SSH real on-prem para valores reales)'}
           </div>
         </>
