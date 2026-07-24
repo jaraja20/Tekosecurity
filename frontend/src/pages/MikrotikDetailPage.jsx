@@ -115,9 +115,9 @@ export default function MikrotikDetailPage() {
       : 'http://localhost:8001';
 
     // Get JWT token from localStorage
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem('auth_token');
     if (!token) {
-      console.warn('[MikrotikDetail] No access token found');
+      console.warn('[MikrotikDetail] No auth_token found');
       return undefined;
     }
 
