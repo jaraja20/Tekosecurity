@@ -106,7 +106,15 @@ export function useAuth() {
     };
   }, []);
 
-  return { user, loading, error, signIn, signUp, signOut };
+  return {
+    user,
+    session: user,
+    loading,
+    error,
+    signIn,
+    signUp,
+    signOut
+  };
 }
 
 // Auth Provider Component
